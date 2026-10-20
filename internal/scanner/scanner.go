@@ -406,6 +406,19 @@ func Run(ctx context.Context, cfg Config) (Result, error) {
 		if base == ".env" || base == ".envrc" {
 			return nil
 		}
+		// Only dispatch regular files. Opening a FIFO blocks until a
+		// writer appears, so a FIFO named like a lockfile (directly or
+		// behind a symlink) would otherwise hang the scan. Symlinks to
+		// regular files stay in scope: dotfile managers commonly
+		// symlink configs such as ~/.claude.json.
+		if !d.Type().IsRegular() {
+			if d.Type()&fs.ModeSymlink == 0 {
+				return nil
+			}
+			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+				return nil
+			}
+		}
 		filesConsidered++
 		switch {
 		case enabled(model.EcosystemNPM) && npm.IsLockfile(base):
